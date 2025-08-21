@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>EOB Helper (µA·h)</title>
+<style>
+  :root { --bg:#f2f2f0; --card:#e6e4e1; --fg:#222; --muted:#6a6a6a; --accent:#3b82f6; }
+  html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--fg);}
+  .wrap{max-width:880px;margin:24px auto;padding:0 16px;}
+  .card{background:var(--card);border-radius:12px;padding:16px 18px;box-shadow:0 1px 4px rgba(0,0,0,.08);}
+  h1{font-size:20px;margin:0 0 8px}
+  p.hint{margin:0 0 14px;color:var(--muted);font-style:italic}
+  .grid{display:grid;grid-template-columns: 1fr 220px;gap:10px 14px;align-items:center}
+  label{font-size:14px}
+  input[type=number]{width:100%;padding:8px;border:1px solid #c9c9c7;border-radius:8px;background:#fff;font-size:14px}
+  .row{display:flex;gap:10px;margin-top:10px}
+  button{appearance:none;border:0;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer}
+  .primary{background:var(--accent);color:#fff}
+  .ghost{background:#ddd}
+  .section{margin-top:16px}
+  .kv{display:grid;grid-template-columns: 1fr 1fr;gap:8px 12px}
+  .kv div{padding:8px 10px;background:#fff;border-radius:8px;border:1px solid #d7d6d4}
+  .label{color:var(--muted);font-size:12px}
+  .val{font-size:16px;font-weight:600}
+  .foot{margin-top:8px;color:var(--muted);font-size:12px}
+  .ok{color:#047857;font-weight:600}
+  .warn{color:#b45309;font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>EOB Helper (µA·h)</h1>
+    <p class="hint">Doses in µA·h, on-target beam current in µA. Logic: <b>total = previous + screen</b>. Stop-at = <b>target − previous</b>.</p>
+    <div class="grid">
+      <label for="prev">Previous dose (µA·h):</label>
+      <input id="prev" type="number" step="0.001" value="0">
+      <label for="screen">Current screen (µA·h):</label>
+      <input id="screen" type="number" step="0.001" value="0">
+      <label for="target">Target total (µA·h):</label>
+      <input id="target" type="number" step="0.001" value="100000">
+      <label for="ua">On-target current (µA):</label>
+      <input id="ua" type="number" step="1" value="150">
+    </div>
+    <div class="row">
+      <button class="primary" id="calcBtn">Calculate</button>
+      <button class="ghost" id="clearBtn">Clear</button>
+    </div>
+
+    <div class="section">
+      <div class="kv">
+        <div><div class="label">Total so far (prev + screen)</div><div class="val" id="total">—</div></div>
+        <div><div class="label">Remaining to add</div><div class="val" id="remain">—</div></div>
+        <div><div class="label">Stop when screen reaches</div><div class="val" id="stopAt">—</div></div>
+        <div><div class="label">Current time</div><div class="val" id="now">—</div></div>
+        <div><div class="label">Estimated EOB</div><div class="val" id="eob">—</div></div>
+        <div><div class="label">Status</div><div class="val" id="status">—</div></div>
+      </div>
+      <div class="foot" id="sanity"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+function fmtTime(d){
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} @ ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function toNum(id){ const v = document.getElementById(id).value.trim(); return v===""?NaN:Number(v); }
+function set(id, txt){ document.getElementById(id).textContent = txt; }
+
+function calc(){
+  const prev = toNum('prev');
+  const scr  = toNum('screen');
+  const tgt  = toNum('target');
+  const ua   = toNum('ua');
+
+  if([prev,scr,tgt].some(x=>Number.isNaN(x))){
+    set('status','Enter numeric values'); return;
+  }
+
+  const total = prev + scr;
+  const remaining = tgt - total;
+  const stopAt = tgt - prev; // independent of screen
+
+  set('total', total.toFixed(3));
+  set('remain', (remaining>0?remaining:0).toFixed(3));
+  set('stopAt', stopAt.toFixed(3));
+
+  const now = new Date();
+  set('now', fmtTime(now));
+
+  if(remaining <= 0){
+    set('eob','Already reached');
+    set('status','Target met'); 
+  } else if (!Number.isNaN(ua) && ua>0){
+    const hours = remaining / ua; // µA·h / µA = h
+    const eob = new Date(now.getTime() + hours*3600*1000);
+    set('eob', fmtTime(eob));
+    set('status', `~${hours.toFixed(2)} h at ${ua.toFixed(0)} µA`);
+  } else {
+    set('eob','—');
+    set('status','Enter on-target current (µA) for EOB');
+  }
+
+  set('sanity', `sanity: stop = target − previous = ${tgt.toFixed(3)} − ${prev.toFixed(3)} = ${stopAt.toFixed(3)} µA·h`);
+}
+
+function clearAll(){
+  document.getElementById('prev').value = "0";
+  document.getElementById('screen').value = "0";
+  document.getElementById('target').value = "100000";
+  document.getElementById('ua').value = "150";
+  ['total','remain','stopAt','eob','status','sanity'].forEach(id=>set(id,'—'));
+  set('now', fmtTime(new Date()));
+}
+
+document.getElementById('calcBtn').addEventListener('click', calc);
+document.getElementById('clearBtn').addEventListener('click', clearAll);
+
+// Enter key triggers calculate:
+['prev','screen','target','ua'].forEach(id=>{
+  document.getElementById(id).addEventListener('keydown', e=>{
+    if(e.key === 'Enter') calc();
+  });
+});
+
+// live clock every 30s
+setInterval(()=>set('now', fmtTime(new Date())), 30000);
+set('now', fmtTime(new Date()));
+</script>
+</body>
+</html>
