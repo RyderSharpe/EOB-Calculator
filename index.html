@@ -97,6 +97,7 @@
   <div class="card">
     <h1>EOB Calculator (µA·h)</h1>
     <p class="hint">Doses in µA·h, on-target beam current in µA. Logic: <b>total = previous + screen</b>. Stop-at = <b>target − previous</b>.</p>
+
     <div class="grid">
       <label for="prev">Previous dose (µA·h):</label>
       <input id="prev" type="number" step="0.001" value="0">
@@ -107,6 +108,7 @@
       <label for="ua">On-target current (µA):</label>
       <input id="ua" type="number" step="1" value="150">
     </div>
+
     <div class="row">
       <button class="primary" id="calcBtn">Calculate</button>
       <button class="ghost" id="clearBtn">Clear</button>
@@ -119,7 +121,7 @@
         <div><div class="label">Stop when screen reaches</div><div class="val" id="stopAt">—</div></div>
         <div><div class="label">Current time</div><div class="val" id="now">—</div></div>
         <div><div class="label">Estimated EOB</div><div class="val" id="eob">—</div></div>
-        <div><div class="label">Remaining Time</div><div class="val" id="status">—</div></div>
+        <div><div class="label">Remaining Time</div><div class="val" id="remainingTime">—</div></div>
       </div>
       <div class="foot" id="sanity"></div>
     </div>
@@ -131,8 +133,11 @@ function fmtTime(d){
   const pad = n => String(n).padStart(2,'0');
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} @ ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
-function toNum(id){ const v = document.getElementById(id).value.trim(); return v===""?NaN:Number(v); }
-function set(id, txt){ document.getElementById(id).textContent = txt; }
+function toNum(id){
+  const v = document.getElementById(id).value.trim();
+  return v===""?NaN:Number(v);
+}
+function setTxt(id, txt){ document.getElementById(id).textContent = txt; }
 
 function calc(){
   const prev = toNum('prev');
@@ -141,58 +146,56 @@ function calc(){
   const ua   = toNum('ua');
 
   if([prev,scr,tgt].some(x=>Number.isNaN(x))){
-    set('status','Enter numeric values'); return;
+    setTxt('remainingTime','—'); return;
   }
 
   const total = prev + scr;
   const remaining = tgt - total;
   const stopAt = tgt - prev; // independent of screen
 
-  set('total', total.toFixed(3));
-  set('remain', (remaining>0?remaining:0).toFixed(3));
-  set('stopAt', stopAt.toFixed(3));
+  setTxt('total', total.toFixed(3));
+  setTxt('remain', (remaining>0?remaining:0).toFixed(3));
+  setTxt('stopAt', stopAt.toFixed(3));
 
   const now = new Date();
-  set('now', fmtTime(now));
+  setTxt('now', fmtTime(now));
 
   if(remaining <= 0){
-    set('eob','Already reached');
-    set('status','Target met'); 
+    setTxt('eob','Already reached');
+    setTxt('remainingTime','0.00 h');
   } else if (!Number.isNaN(ua) && ua>0){
-    const hours = remaining / ua; // µA·h / µA = h
+    const hours = remaining / ua; // µA·h / µA = hours
     const eob = new Date(now.getTime() + hours*3600*1000);
-    set('eob', fmtTime(eob));
-    set('status', `~${hours.toFixed(2)} h at ${ua.toFixed(0)} µA`);
+    setTxt('eob', fmtTime(eob));
+    setTxt('remainingTime', `${hours.toFixed(2)} h`);
   } else {
-    set('eob','—');
-    set('status','Enter on-target current (µA) for EOB');
+    setTxt('eob','—');
+    setTxt('remainingTime','—');
   }
 
-  set('sanity', `sanity: stop = target − previous = ${tgt.toFixed(3)} − ${prev.toFixed(3)} = ${stopAt.toFixed(3)} µA·h`);
+  setTxt('sanity', `sanity: stop = target − previous = ${tgt.toFixed(3)} − ${prev.toFixed(3)} = ${stopAt.toFixed(3)} µA·h`);
 }
 
 function clearAll(){
-  document.getElementById('prev').value = "0";
+  document.getElementById('prev').value   = "0";
   document.getElementById('screen').value = "0";
   document.getElementById('target').value = "100000";
-  document.getElementById('ua').value = "150";
-  ['total','remain','stopAt','eob','status','sanity'].forEach(id=>set(id,'—'));
-  set('now', fmtTime(new Date()));
+  document.getElementById('ua').value     = "150";
+  ['total','remain','stopAt','eob','remainingTime','sanity'].forEach(id=>setTxt(id,'—'));
+  setTxt('now', fmtTime(new Date()));
 }
 
 document.getElementById('calcBtn').addEventListener('click', calc);
 document.getElementById('clearBtn').addEventListener('click', clearAll);
-
-// Enter key triggers calculate:
 ['prev','screen','target','ua'].forEach(id=>{
   document.getElementById(id).addEventListener('keydown', e=>{
     if(e.key === 'Enter') calc();
   });
 });
 
-// live clock every 30s
-setInterval(()=>set('now', fmtTime(new Date())), 30000);
-set('now', fmtTime(new Date()));
+// Live clock at minute resolution
+setInterval(()=>setTxt('now', fmtTime(new Date())), 30000);
+setTxt('now', fmtTime(new Date()));
 </script>
 </body>
 </html>
