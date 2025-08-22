@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>EOB Calculator (µA·h)</title>
+<style>
+  /* ==== Dark theme palette (green accent) ==== */
+  :root{
+    --bg:#0b0f10;        /* page background */
+    --card:#11161a;      /* panels/cards */
+    --fg:#e6f1ef;        /* main text */
+    --muted:#8aa1a6;     /* secondary text */
+    --line:#1f2a30;      /* borders */
+    --accent:#22c55e;    /* green accent */
+    --accent-weak:#164e2b;
+  }
+
+  html,body{
+    margin:0; height:100%;
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    background:var(--bg); color:var(--fg);
+  }
+
+  .wrap{max-width:980px;margin:24px auto;padding:0 16px;}
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:16px 18px;
+    box-shadow:0 0 0 1px rgba(34,197,94,.05), 0 12px 30px rgba(0,0,0,.35);
+  }
+
+  h1{font-size:22px;margin:0 0 10px}
+  p.hint{margin:0 0 16px;color:var(--muted);font-style:italic}
+
+  .grid{
+    display:grid;
+    grid-template-columns: 1fr 260px;
+    gap:12px 16px; align-items:center;
+  }
+  label{font-size:14px;color:var(--fg)}
+  input[type=number]{
+    width:50%; padding:14px 16px;          /* more comfortable spacing */
+    border:1px solid var(--line);
+    border-radius:12px;
+    background:#0e1418; color:var(--fg);
+    font-size:16px; letter-spacing:.5px;
+    outline:none;
+  }
+  input[type=number]:focus{
+    border-color:var(--accent);
+    box-shadow:0 0 0 3px rgba(34,197,94,.15);
+  }
+
+  .row{display:flex; gap:12px; margin-top:12px}
+  button{
+    appearance:none; border:1px solid var(--line);
+    border-radius:10px; padding:10px 14px;
+    font-weight:700; cursor:pointer; color:var(--fg);
+    background:#0e1418;
+  }
+  .primary{
+    background:linear-gradient(180deg,var(--accent),#057c31);
+    border-color:#12803d;
+    color:#051007;
+    text-shadow:0 1px 0 rgba(255,255,255,.25);
+  }
+  .primary:hover{filter:brightness(1.05)}
+  .ghost:hover{border-color:var(--accent)}
+
+  .section{margin-top:18px}
+  .kv{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:10px 14px;
+  }
+  .kv div{
+    padding:10px 12px;
+    background:#0e1418;
+    border:1px solid var(--line);
+    border-radius:10px;
+  }
+  .label{color:var(--muted);font-size:12px;margin-bottom:6px}
+  .val{font-size:18px;font-weight:700;color:#e8fff1}
+  .foot{margin-top:10px;color:var(--muted);font-size:12px}
+
+  /* subtle “status strip” look on key values */
+  #stopAt,#remainingTime{
+    background:linear-gradient(180deg, rgba(34,197,94,.15), rgba(34,197,94,.05));
+    border-radius:8px; padding:2px 8px; display:inline-block;
+    color:#c8ffd9;
+  }
+
+  #eob{
+    background:linear-gradient(180deg, rgba(34,197,94,.15), rgba(34,197,94,.05));
+    border-radius:8px; padding:2px 8px; display:inline-block;
+    color:#fa0f0f;
+  }
+
+
+  /* === Progress bar === */
+  .progress-wrap{
+    margin-top:14px;
+    background:#0e1418;
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:10px 12px;
+  }
+  .progress-head{
+    display:flex; justify-content:space-between; align-items:center;
+    color:var(--muted); font-size:12px; margin-bottom:8px;
+  }
+  .progress{
+    width:100%; height:14px; background:#0b1215;
+    border:1px solid var(--line); border-radius:999px; overflow:hidden;
+  }
+  .bar{
+    height:100%; width:0%;
+    background:linear-gradient(90deg, #16a34a, #22c55e);
+    box-shadow:0 0 12px rgba(34,197,94,.35) inset;
+    transition:width .25s ease;
+  }
+
+  /* Countdown emphasis */
+  #countdown{
+    font-variant-numeric: tabular-nums;
+    letter-spacing:.5px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>EOB Calculator (µA·h)</h1>
+    <p class="hint">
+      Doses in µA·h, on-target beam current in µA. Logic: <b>total = previous + screen</b>.
+      Stop-at = <b>target − previous</b>.
+    </p>
+
+    <div class="grid">
+      <label for="prev">Previous dose (
+        <a href="https://atgrecords.triumf.ca/login.php" target="_blank"
+           style="color:#12803d; font-style:italic; font-weight:600; background:rgba(0, 0, 0, 0.12); padding:1px 4px; border-radius:4px; text-decoration:none;">
+          ATG Records
+        </a>
+      ):</label>
+      <input id="prev" type="number" step="0.001" value="0">
+
+      <label for="screen">Current dose (live µAh):</label>
+      <input id="screen" type="number" step="0.001" value="0">
+
+      <label for="target">Desired target total:</label>
+      <input id="target" type="number" step="0.001" value="100000">
+
+      <label for="ua">On-target current (µA):</label>
+      <input id="ua" type="number" step="1" value="300">
+    </div>
+
+    <div class="row">
+      <button class="primary" id="calcBtn">Calculate</button>
+      <button class="ghost" id="clearBtn">Clear</button>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-wrap" aria-label="Dose progress">
+      <div class="progress-head">
+        <span>Progress to EOB</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="bar" id="progressBar"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="kv">
+        <div><div class="label">Total so far (records + current)</div><div class="val" id="total">—</div></div>
+        <div><div class="label">Remaining dose to add</div><div class="val" id="remain">—</div></div>
+        <div><div class="label">Stop when screen reaches</div><div class="val" id="stopAt">—</div></div>
+        <div><div class="label">Current time</div><div class="val" id="now">—</div></div>
+        <div><div class="label">Estimated EOB</div><div class="val" id="eob">—</div></div>
+        <div><div class="label">Remaining Time</div><div class="val" id="remainingTime">— <span id="countdown"></span></div></div>
+      </div>
+      <div class="foot" id="sanity"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let countdownTimer = null;
+let countdownTargetMs = null;
+
+function fmtTime(d){
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} @ ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function toNum(id){
+  const v = document.getElementById(id).value.trim();
+  return v===""?NaN:Number(v);
+}
+function setTxt(id, txt){ document.getElementById(id).textContent = txt; }
+
+// ⬇️ ADD THIS NEW FUNCTION HERE
+function formatDuration(hours) {
+  const totalMinutes = Math.round(hours * 60);
+  const days = Math.floor(totalMinutes / (60*24));
+  const hrs  = Math.floor((totalMinutes % (60*24)) / 60);
+  const mins = totalMinutes % 60;
+
+  let parts = [];
+  if (days > 0) parts.push(`${days}d`);
+  if (hrs > 0)  parts.push(`${hrs}h`);
+  if (mins > 0 && days === 0) parts.push(`${mins}m`);
+  return parts.join(" ");
+}
+// ⬆️ NEW FUNCTION ENDS
+
+function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+
+function hhmmssFromMs(ms){
+  if (ms < 0) ms = 0;
+  const s = Math.floor(ms/1000);
+  const h = Math.floor(s/3600);
+  const m = Math.floor((s%3600)/60);
+  const sec = s%60;
+  const pad = n => String(n).padStart(2,'0');
+  return `${pad(h)}:${pad(m)}:${pad(sec)}`;
+}
+
+function stopCountdown(){
+  if (countdownTimer){
+    clearInterval(countdownTimer);
+    countdownTimer = null;
+  }
+  countdownTargetMs = null;
+  setTxt('countdown','');
+}
+
+function startCountdown(targetMs){
+  stopCountdown();              // ensure only one timer
+  countdownTargetMs = targetMs;
+  const tick = () => {
+    const now = Date.now();
+    const msLeft = targetMs - now;
+    setTxt('countdown', `(${hhmmssFromMs(msLeft)})`);
+    if (msLeft <= 0) {
+      stopCountdown();
+      setTxt('remainingTime','0.00 h');
+      setTxt('eob','Already reached');
+    }
+  };
+  tick();                       // immediate update
+  countdownTimer = setInterval(tick, 1000);
+}
+
+function updateProgress(total, target){
+  const pct = (!isFinite(target) || target<=0) ? 0 : clamp((total/target)*100, 0, 100);
+  const pctStr = `${pct.toFixed(1)}%`;
+  const bar = document.getElementById('progressBar');
+  const pctEl = document.getElementById('progressPct');
+  const rb = document.querySelector('.progress[role="progressbar"]');
+
+  // width + text + aria
+  bar.style.width = pct + '%';
+  pctEl.textContent = pctStr;
+  rb.setAttribute('aria-valuenow', pct.toFixed(1));
+
+  // --- Dynamic bar color: green → yellow → red (0%→50%→100%)
+  if (pct < 50) {
+    const ratio = pct / 50;
+    // #22c55e (34,197,94) → #ffff00 (255,255,0)
+    const r = Math.round(34  + (255 - 34 ) * ratio);
+    const g = Math.round(197 + (255 - 197) * ratio);
+    const b = Math.round(94  + (0   - 94 ) * ratio);
+    bar.style.background = `rgb(${r},${g},${b})`;
+  } else {
+    const ratio = (pct - 50) / 50;
+    // #ffff00 (255,255,0) → #ff0000 (255,0,0)
+    const r = 255;
+    const g = Math.round(255 - 255 * ratio);
+    const b = 0;
+    bar.style.background = `rgb(${r},${g},${b})`;
+  }
+
+  // (optional) tint the % label to match the bar
+  pctEl.style.color = bar.style.background;
+}
+
+
+
+
+
+function calc(){
+  const prev = toNum('prev');
+  const scr  = toNum('screen');
+  const tgt  = toNum('target');
+  const ua   = toNum('ua');
+
+  const now = new Date();
+  setTxt('now', fmtTime(now));
+
+  if([prev,scr,tgt].some(x=>Number.isNaN(x))){
+    setTxt('remainingTime','—'); setTxt('eob','—'); setTxt('sanity','');
+    updateProgress(0, 1); stopCountdown(); return;
+  }
+
+  const total = prev + scr;
+  const remaining = tgt - total;
+  const stopAt = tgt - prev; // independent of screen
+
+  setTxt('total', total.toFixed(3));
+  setTxt('remain', (remaining>0?remaining:0).toFixed(3));
+  setTxt('stopAt', stopAt.toFixed(3));
+  setTxt('sanity', `sanity: stop = target − previous = ${tgt.toFixed(3)} − ${prev.toFixed(3)} = ${stopAt.toFixed(3)} µA·h`);
+
+  // Progress bar
+  updateProgress(total, tgt);
+
+  if(remaining <= 0){
+    setTxt('eob','Already reached');
+    setTxt('remainingTime','0.00 h');
+    stopCountdown();
+  } else if (!Number.isNaN(ua) && ua>0){
+    const hours = remaining / ua; // µA·h / µA = hours
+    const endMs = now.getTime() + hours*3600*1000;
+    setTxt('eob', fmtTime(new Date(endMs)));
+    setTxt('remainingTime', formatDuration(hours));
+
+    startCountdown(endMs);
+  } else {
+    setTxt('eob','—');
+    setTxt('remainingTime','—');
+    stopCountdown();
+  }
+}
+
+function clearAll(){
+  document.getElementById('prev').value   = "0";
+  document.getElementById('screen').value = "0";
+  document.getElementById('target').value = "100000";
+  document.getElementById('ua').value     = "300";
+  ['total','remain','stopAt','eob','remainingTime','sanity'].forEach(id=>setTxt(id,'—'));
+  setTxt('now', fmtTime(new Date()));
+  updateProgress(0, 1);
+  stopCountdown();
+}
+
+document.getElementById('calcBtn').addEventListener('click', calc);
+document.getElementById('clearBtn').addEventListener('click', clearAll);
+['prev','screen','target','ua'].forEach(id=>{
+  document.getElementById(id).addEventListener('keydown', e=>{
+    if(e.key === 'Enter') calc();
+  });
+});
+
+// Live clock at minute resolution
+setInterval(()=>setTxt('now', fmtTime(new Date())), 30000);
+setTxt('now', fmtTime(new Date()));
+</script>
+</body>
+</html>
