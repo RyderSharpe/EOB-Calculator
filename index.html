@@ -165,7 +165,7 @@
     <!-- Progress -->
     <div class="progress-wrap" aria-label="Dose progress">
       <div class="progress-head">
-        <span>Progress to target</span>
+        <span>Progress to EOB</span>
         <span id="progressPct">0%</span>
       </div>
       <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
@@ -200,6 +200,21 @@ function toNum(id){
   return v===""?NaN:Number(v);
 }
 function setTxt(id, txt){ document.getElementById(id).textContent = txt; }
+
+// ⬇️ ADD THIS NEW FUNCTION HERE
+function formatDuration(hours) {
+  const totalMinutes = Math.round(hours * 60);
+  const days = Math.floor(totalMinutes / (60*24));
+  const hrs  = Math.floor((totalMinutes % (60*24)) / 60);
+  const mins = totalMinutes % 60;
+
+  let parts = [];
+  if (days > 0) parts.push(`${days}d`);
+  if (hrs > 0)  parts.push(`${hrs}h`);
+  if (mins > 0 && days === 0) parts.push(`${mins}m`);
+  return parts.join(" ");
+}
+// ⬆️ NEW FUNCTION ENDS
 
 function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
 
@@ -310,7 +325,8 @@ function calc(){
     const hours = remaining / ua; // µA·h / µA = hours
     const endMs = now.getTime() + hours*3600*1000;
     setTxt('eob', fmtTime(new Date(endMs)));
-    setTxt('remainingTime', `${hours.toFixed(2)} h`);
+    setTxt('remainingTime', formatDuration(hours));
+
     startCountdown(endMs);
   } else {
     setTxt('eob','—');
