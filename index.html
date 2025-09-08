@@ -224,7 +224,7 @@ function toNum(id){
 }
 function setTxt(id, txt){ document.getElementById(id).textContent = txt; }
 
-// ⬇️ ADD THIS NEW FUNCTION HERE
+
 function formatDuration(hours) {
   const totalMinutes = Math.round(hours * 60);
   const days = Math.floor(totalMinutes / (60*24));
@@ -237,7 +237,7 @@ function formatDuration(hours) {
   if (mins > 0 && days === 0) parts.push(`${mins}m`);
   return parts.join(" ");
 }
-// ⬆️ NEW FUNCTION ENDS
+
 
 function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
 
